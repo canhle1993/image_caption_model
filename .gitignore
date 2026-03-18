@@ -1,0 +1,10 @@
+.idea/
+.venv-metal/
+__pycache__/
+.DS_Store
+
+# Local training artifacts
+workspace/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
