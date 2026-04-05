@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SLIDE_BAO_VE - Neural Image Caption Generation</title>
+  <style>
+    :root {
+      --bg: #0b1c33;
+      --panel: #ffffff;
+      --panel-soft: #f4f7fb;
+      --ink: #10243c;
+      --muted: #5f7289;
+      --brand: #143d72;
+      --brand-2: #2f73be;
+      --accent: #f08a2b;
+      --accent-soft: #fff2e4;
+      --line: rgba(16, 36, 60, 0.12);
+      --shadow: 0 34px 90px rgba(5, 18, 37, 0.28);
+      --radius: 28px;
+      --viewport-pad: clamp(12px, 2vw, 28px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(62, 134, 214, 0.22), transparent 32%),
+        radial-gradient(circle at top right, rgba(240, 138, 43, 0.18), transparent 28%),
+        linear-gradient(145deg, #091427 0%, #0b1c33 48%, #122949 100%);
+      color: var(--ink);
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px var(--viewport-pad) 10px;
+      color: #eef5ff;
+    }
+
+    .app-title {
+      display: grid;
+      gap: 4px;
+    }
+
+    .app-title strong {
+      font-size: clamp(1rem, 1.8vw, 1.2rem);
+      letter-spacing: 0.03em;
+    }
+
+    .app-title span {
+      font-size: 0.9rem;
+      color: rgba(238, 245, 255, 0.78);
+    }
+
+    .header-tools {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f7fbff;
+      backdrop-filter: blur(16px);
+    }
+
+    .viewport {
+      position: relative;
+      display: grid;
+      place-items: center;
+      padding: var(--viewport-pad);
+    }
+
+    .deck {
+      position: relative;
+      width: min(96vw, calc(93vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      background: var(--panel);
+    }
+
+    .slide.is-active {
+      display: grid;
+      grid-template-rows: 88px 1fr 44px;
+      animation: fadeIn 220ms ease;
+    }
+
+    .slide-card--hero {
+      background:
+        radial-gradient(circle at top right, rgba(240, 138, 43, 0.18), transparent 30%),
+        linear-gradient(145deg, #0f2950 0%, #143d72 42%, #0e2141 100%);
+      color: #f6fbff;
+    }
+
+    .slide-card--hero .slide-topbar,
+    .slide-card--hero .slide-footer {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.12);
+      color: #eef5ff;
+    }
+
+    .slide-card--hero .slide-chip {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .slide-card--hero .slide-heading,
+    .slide-card--hero .slide-text,
+    .slide-card--hero .md-h1,
+    .slide-card--hero .md-h2,
+    .slide-card--hero .md-h3,
+    .slide-card--hero .md-p,
+    .slide-card--hero .md-callout,
+    .slide-card--hero .md-list,
+    .slide-card--hero .md-table,
+    .slide-card--hero .md-quote {
+      color: #f6fbff;
+    }
+
+    .slide-card--hero .md-table td,
+    .slide-card--hero .md-table th {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .slide-card--hero code,
+    .slide-card--hero .md-code {
+      background: rgba(3, 11, 24, 0.35);
+      color: #ffe3c1;
+    }
+
+    .slide-topbar,
+    .slide-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 26px;
+      background: linear-gradient(180deg, rgba(20, 61, 114, 0.98), rgba(16, 47, 87, 0.98));
+      color: #eff5ff;
+    }
+
+    .slide-footer {
+      background: #13365f;
+      font-size: 0.84rem;
+      color: rgba(239, 245, 255, 0.88);
+    }
+
+    .slide-chip {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .slide-heading {
+      font-size: clamp(1rem, 1.75vw, 1.28rem);
+      font-weight: 700;
+      text-align: right;
+      letter-spacing: 0.01em;
+    }
+
+    .slide-content {
+      min-height: 0;
+      padding: 22px 26px 20px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .layout-text-only .slide-content {
+      grid-template-columns: 1fr;
+    }
+
+    .layout-side .slide-content {
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      align-items: stretch;
+    }
+
+    .layout-bottom .slide-content {
+      grid-template-rows: minmax(0, 1fr) minmax(220px, 0.9fr);
+    }
+
+    .slide-text {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(20, 61, 114, 0.4) transparent;
+    }
+
+    .slide-text::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .slide-text::-webkit-scrollbar-thumb {
+      background: rgba(20, 61, 114, 0.35);
+      border-radius: 999px;
+    }
+
+    .md-h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 3.8vw, 3rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      color: var(--brand);
+    }
+
+    .md-h2 {
+      margin: 0 0 12px;
+      font-size: clamp(1.18rem, 2vw, 1.55rem);
+      line-height: 1.18;
+      color: var(--brand);
+    }
+
+    .md-h3 {
+      margin: 18px 0 10px;
+      font-size: clamp(1rem, 1.6vw, 1.15rem);
+      color: var(--brand-2);
+    }
+
+    .md-p,
+    .md-callout,
+    .md-list,
+    .md-quote {
+      margin: 0 0 12px;
+      font-size: clamp(0.88rem, 1.23vw, 1.02rem);
+      line-height: 1.48;
+      color: var(--ink);
+    }
+
+    .md-callout {
+      padding: 10px 14px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .md-list {
+      padding-left: 24px;
+    }
+
+    .md-list li {
+      margin-bottom: 8px;
+    }
+
+    .md-quote {
+      padding: 12px 16px;
+      background: #eef5ff;
+      border-left: 4px solid var(--brand-2);
+      border-radius: 14px;
+      color: #244362;
+    }
+
+    .md-code {
+      margin: 0 0 12px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: #0e1b2c;
+      color: #f7fafc;
+      overflow: auto;
+      font-size: clamp(0.78rem, 1.04vw, 0.92rem);
+      line-height: 1.4;
+    }
+
+    code {
+      padding: 0.14em 0.36em;
+      border-radius: 8px;
+      background: rgba(20, 61, 114, 0.08);
+      color: #12335c;
+      font-size: 0.92em;
+    }
+
+    .md-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 12px;
+      border-radius: 16px;
+      overflow: hidden;
+      font-size: clamp(0.78rem, 1.02vw, 0.92rem);
+    }
+
+    .md-table th,
+    .md-table td {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    .md-table thead th {
+      background: #173d70;
+      color: #f3f7ff;
+      text-align: left;
+    }
+
+    .md-table tbody tr:nth-child(odd) td {
+      background: #f6f9fc;
+    }
+
+    .spacer {
+      height: 14px;
+    }
+
+    .media-grid {
+      min-height: 0;
+      display: grid;
+      gap: 14px;
+    }
+
+    .media-grid--side {
+      grid-template-columns: 1fr;
+      align-content: stretch;
+    }
+
+    .media-grid--bottom {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      align-content: start;
+      overflow: auto;
+      padding-right: 6px;
+    }
+
+    .media-card {
+      margin: 0;
+      background: #f8fbff;
+      border: 1px solid rgba(18, 51, 92, 0.1);
+      border-radius: 18px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      box-shadow: 0 14px 28px rgba(10, 33, 60, 0.08);
+    }
+
+    .media-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #ffffff;
+      display: block;
+    }
+
+    .media-card figcaption {
+      padding: 10px 12px 12px;
+      font-size: 0.82rem;
+      line-height: 1.35;
+      color: var(--muted);
+      background: #f6faff;
+      border-top: 1px solid rgba(18, 51, 92, 0.08);
+    }
+
+    .notes-panel {
+      position: fixed;
+      top: 84px;
+      right: 18px;
+      width: min(360px, calc(100vw - 36px));
+      max-height: calc(100vh - 150px);
+      overflow: auto;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: rgba(7, 18, 34, 0.88);
+      color: #f7fbff;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(20px);
+      display: none;
+      z-index: 20;
+    }
+
+    .notes-panel.is-open {
+      display: block;
+    }
+
+    .notes-panel h3 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0.04em;
+      color: #ffd3a2;
+    }
+
+    .notes-panel p {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+
+    .progress-bar {
+      height: 6px;
+      margin: 0 var(--viewport-pad) 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .progress-bar span {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #55a4ff 0%, #f08a2b 100%);
+      transition: width 180ms ease;
+    }
+
+    .help-panel {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100vw - 36px));
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #eef5ff;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      backdrop-filter: blur(18px);
+    }
+
+    .help-panel strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #ffffff;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 980px) {
+      .deck {
+        width: 100%;
+        height: 100%;
+        aspect-ratio: auto;
+      }
+
+      .slide.is-active {
+        grid-template-rows: 74px 1fr 42px;
+      }
+
+      .layout-side .slide-content,
+      .layout-bottom .slide-content {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+
+      .slide-topbar,
+      .slide-footer {
+        padding: 0 18px;
+      }
+
+      .slide-content {
+        padding: 16px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">
+      <strong>SLIDE BẢO VỆ ĐỒ ÁN</strong>
+      <span>Neural Image Caption Generation</span>
+    </div>
+    <div class="header-tools">
+      <div class="chip">← → chuyển slide</div>
+      <div class="chip">N mở lời thoại</div>
+      <div class="chip">F fullscreen</div>
+    </div>
+  </header>
+
+  <main class="viewport">
+    <div class="deck" id="deck">
+      
+        <section class="slide slide-card layout-side slide-card--hero" data-slide-index="1" data-slide-key="1" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Kính chào Hội đồng, thưa thầy Hồ Nhựt Minh và các thầy cô.
+Nhóm chúng em gồm Lê Văn Cảnh và Nguyễn Đức Trường Giang, lớp DT2307L.
+Hôm nay nhóm em xin trình bày đồ án: **Sinh mô tả ảnh tự động sử dụng Học sâu**.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 1</div>
+            <div class="slide-heading">TRANG BÌA</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><div class="spacer"></div>
+<h1 class="md-h1">SINH MÔ TẢ ẢNH TỰ ĐỘNG</h1>
+<h2 class="md-h2">SỬ DỤNG HỌC SÂU</h2>
+<h3 class="md-h3">Neural Image Caption Generation</h3>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Sinh viên thực hiện</strong></td><td>Lê Văn Cảnh     Nguyễn Đức Trường Giang</td></tr><tr><td><strong>Lớp</strong></td><td>DT2307L</td></tr><tr><td><strong>Giảng viên hướng dẫn</strong></td><td>Hồ Nhựt Minh</td></tr><tr><td><strong>Trường</strong></td><td>Aptech</td></tr><tr><td><strong>Năm học</strong></td><td>2025 – 2026</td></tr></tbody></table></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-11.png" alt="Ví dụ trực quan: ảnh đầu vào và caption sinh ra">
+              <figcaption>Ví dụ trực quan: ảnh đầu vào và caption sinh ra</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>1 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only slide-card--agenda" data-slide-index="2" data-slide-key="2" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Bài trình bày của nhóm em gồm 7 phần chính như trên màn hình.
+Em sẽ trình bày từ Phần 1 đến Phần 4, sau đó bạn Giang sẽ tiếp tục từ Phần 5.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 2</div>
+            <div class="slide-heading">NỘI DUNG TRÌNH BÀY</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><div class="spacer"></div>
+<table class="md-table"><thead><tr><th>#</th><th>Nội dung</th></tr></thead><tbody><tr><td>1</td><td>Đặt vấn đề — Tại sao làm bài này?</td></tr><tr><td>2</td><td>Dataset — Flickr30k</td></tr><tr><td>3</td><td>Công nghệ sử dụng — Tại sao chọn?</td></tr><tr><td>4</td><td>Kiến trúc mô hình</td></tr><tr><td>5</td><td>Quá trình huấn luyện</td></tr><tr><td>6</td><td>Kết quả &amp; Demo</td></tr><tr><td>7</td><td>Phân tích — Kết luận</td></tr></tbody></table></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>2 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="3" data-slide-key="3" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Thưa hội đồng, bài toán chúng em thực hiện là **Sinh mô tả ảnh tự động** —
+tức là đưa vào một bức ảnh, hệ thống sẽ **tự động sinh ra một câu mô tả bằng ngôn ngữ tự nhiên** mà không cần con người can thiệp.
+Bài toán này giao thoa giữa hai lĩnh vực: **Thị giác máy tính** và **Xử lý ngôn ngữ tự nhiên**.
+Ứng dụng rất rộng như hỗ trợ người khiếm thị, tìm kiếm ảnh, y tế...&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 3</div>
+            <div class="slide-heading">ĐẶT VẤN ĐỀ</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Bài toán: Máy tính có thể "đọc" và mô tả ảnh không?</h2>
+<div class="spacer"></div>
+<pre class="md-code"><code>🖼️  [Ảnh một người đang chạy]
+              ↓
+🤖  &quot;A man is running on a track&quot;</code></pre>
+<div class="spacer"></div>
+<h3 class="md-h3">Ứng dụng thực tế:</h3>
+<table class="md-table"><thead><tr><th>Ứng dụng</th><th>Mô tả</th></tr></thead><tbody><tr><td>👁️ Hỗ trợ người khiếm thị</td><td>Đọc nội dung ảnh qua giọng nói</td></tr><tr><td>🔍 Tìm kiếm ảnh</td><td>Tìm ảnh bằng mô tả ngôn ngữ tự nhiên</td></tr><tr><td>📱 Mạng xã hội</td><td>Tự động gợi ý caption cho ảnh</td></tr><tr><td>🤖 Robot thông minh</td><td>Robot hiểu và mô tả môi trường</td></tr><tr><td>🏥 Y tế</td><td>Tự động mô tả ảnh X-quang, MRI</td></tr></tbody></table></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>3 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="4" data-slide-key="4" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Mục tiêu của nhóm em là **xây dựng và so sánh 3 mô hình** sinh mô tả ảnh.
+Ba mô hình đều dùng chung kiến trúc decoder LSTM + Bahdanau Attention, chỉ khác nhau ở **phần Encoder** — tức phần trích xuất đặc trưng từ ảnh.
+Điều này giúp so sánh **công bằng** xem Encoder nào cho kết quả tốt hơn.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 4</div>
+            <div class="slide-heading">MỤC TIÊU ĐỀ TÀI</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Nhóm em nghiên cứu và so sánh 3 hướng tiếp cận:</h2>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Mô hình</th><th>Encoder</th><th>Decoder</th><th>Đặc điểm</th></tr></thead><tbody><tr><td><strong>Mô hình 1</strong></td><td>VGG16</td><td>LSTM + Attention</td><td>Baseline — phổ biến, đơn giản</td></tr><tr><td><strong>Mô hình 2</strong></td><td>ResNet-101</td><td>LSTM + Attention</td><td>Đặc trưng sâu hơn (2048 chiều)</td></tr><tr><td><strong>Mô hình 3</strong></td><td>CLIP ViT-B/32</td><td>LSTM + Attention</td><td>Ngữ nghĩa vision-language</td></tr></tbody></table>
+<div class="spacer"></div>
+<blockquote class="md-quote">✅ Cả 3 mô hình: <strong>cùng dataset, cùng decoder, cùng tập test</strong> → So sánh <strong>công bằng</strong></blockquote></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>4 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="5" data-slide-key="5" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Dataset nhóm em dùng là **Flickr30k** — được công bố bởi Young và cộng sự năm 2014,
+gồm gần 32 nghìn ảnh, mỗi ảnh có **5 câu mô tả khác nhau** do người thật viết.
+Dữ liệu được chia ngẫu nhiên với seed cố định 42 để đảm bảo mọi thực nghiệm đều có thể tái lập.
+Quan trọng là cả 3 mô hình đều dùng **chính xác cùng tập test 1,000 ảnh** — nên kết quả so sánh là công bằng.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 5</div>
+            <div class="slide-heading">DATASET: FLICKR30K</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Dữ liệu huấn luyện</h2>
+<blockquote class="md-quote">Young et al., 2014 — Một trong những dataset chuẩn nhất cho bài toán Image Captioning</blockquote>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Thông số</th><th>Giá trị</th></tr></thead><tbody><tr><td>Tổng số ảnh</td><td><strong>31,783 ảnh</strong></td></tr><tr><td>Số mô tả</td><td><strong>158,915 câu</strong> (5 câu/ảnh)</td></tr><tr><td>Định dạng</td><td>JPEG — đa dạng chủ đề</td></tr><tr><td>Nguồn nhãn</td><td>Amazon Mechanical Turk (người thật gán nhãn)</td></tr><tr><td>Ngôn ngữ</td><td>Tiếng Anh</td></tr></tbody></table>
+<div class="spacer"></div>
+<h3 class="md-h3">Phân chia dữ liệu (seed = 42 — đảm bảo tái lập kết quả):</h3>
+<table class="md-table"><thead><tr><th>Tập</th><th>Số ảnh</th><th>Tỷ lệ</th><th>Số caption</th></tr></thead><tbody><tr><td><strong>Train</strong></td><td>29,769</td><td>93.7%</td><td>148,844</td></tr><tr><td><strong>Validation</strong></td><td>1,014</td><td>3.2%</td><td>5,070</td></tr><tr><td><strong>Test</strong></td><td>1,000</td><td>3.1%</td><td>5,000</td></tr></tbody></table>
+<p class="md-callout">📌 <strong>3 mô hình dùng chung tập Test → So sánh công bằng</strong></p></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-1.png" alt="Phân tích kích thước ảnh trong Flickr30k">
+              <figcaption>Phân tích kích thước ảnh trong Flickr30k</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-6.png" alt="Thống kê split train / validation / test">
+              <figcaption>Thống kê split train / validation / test</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/CLIP/clip1.png" alt="EDA tổng quan từ notebook CLIP">
+              <figcaption>EDA tổng quan từ notebook CLIP</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>5 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="6" data-slide-key="6" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Trước khi huấn luyện, caption phải được làm sạch theo 3 bước chính.
+Kết quả là từ hơn 23,000 từ trong kho dữ liệu, chúng em giữ lại 10,000 từ thường gặp nhất.
+Mỗi từ trong từ điển được **khởi tạo bằng GloVe 300d** — một bộ vector từ được huấn luyện sẵn trên 6 tỷ từ.
+Điều này giúp mô hình **không phải học từ đầu về ngữ nghĩa của từ**, 99.2% vocab có sẵn vector GloVe.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 6</div>
+            <div class="slide-heading">TIỀN XỬ LÝ DỮ LIỆU</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Pipeline xử lý caption</h2>
+<pre class="md-code"><code>Raw caption: &quot;A man Running in the Park!!&quot;
+       ↓  (lowercase)
+       &quot;a man running in the park&quot;
+       ↓  (loại ký tự đặc biệt)
+       &quot;a man running in the park&quot;
+       ↓  (thêm token bắt đầu/kết thúc)
+       &quot;startseq a man running in the park endseq&quot;</code></pre>
+<div class="spacer"></div>
+<h3 class="md-h3">Từ điển (Vocabulary):</h3>
+<table class="md-table"><thead><tr><th>Thông số</th><th>Giá trị</th></tr></thead><tbody><tr><td>Vocab thô (trước lọc)</td><td>&gt; 23,457 từ</td></tr><tr><td>Vocab sau lọc</td><td><strong>10,000 từ</strong> phổ biến nhất</td></tr><tr><td>Giảm</td><td>57.4% — loại bỏ từ hiếm gặp</td></tr><tr><td><strong>GloVe 300d coverage</strong></td><td><strong>99.2%</strong> được khởi tạo từ GloVe</td></tr></tbody></table>
+<div class="spacer"></div>
+<blockquote class="md-quote">📖 <strong>GloVe</strong> (Pennington et al., 2014) — Vector từ 300 chiều, huấn luyện trên <strong>6 tỷ token</strong> từ Wikipedia</blockquote></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-4.png" alt="Caption cleaning trước và sau xử lý">
+              <figcaption>Caption cleaning trước và sau xử lý</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-5.png" alt="Vocabulary cutoff và GloVe coverage">
+              <figcaption>Vocabulary cutoff và GloVe coverage</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet3.png" alt="Thống kê caption cleaning từ notebook ResNet">
+              <figcaption>Thống kê caption cleaning từ notebook ResNet</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/CLIP/clip4.png" alt="Tokenization và GloVe embeddings cho CLIP">
+              <figcaption>Tokenization và GloVe embeddings cho CLIP</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>6 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="7" data-slide-key="7" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Đây là kiến trúc tổng quan của cả 3 mô hình.
+Phần **Encoder** nhận ảnh vào và xuất ra một ma trận đặc trưng kích thước 49 × D — tức 49 vị trí không gian trong ảnh.
+Phần **Decoder** là LSTM nhận từng từ, kết hợp với **Attention** để biết nên nhìn vào vùng nào của ảnh khi sinh từ tiếp theo.
+Ba mô hình giống nhau hoàn toàn ở Decoder, chỉ khác ở Encoder.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 7</div>
+            <div class="slide-heading">KIẾN TRÚC TỔNG QUAN</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Encoder – Decoder với Bahdanau Attention</h2>
+<pre class="md-code"><code>                    ┌─────────────┐
+  Ảnh 224×224×3  →  │   ENCODER   │  →  Features (49, D)
+                    │ CNN / ViT   │
+                    └─────────────┘
+                           │
+                           ▼
+                    ┌─────────────────────────────────┐
+                    │           DECODER               │
+  Caption (từng     │  GloVe Embedding (300d)         │
+  từ một)       →  │         ↓                       │
+                    │    LSTMCell (512)  ←── context  │
+                    │         ↓              ↑        │
+                    │    Output Projection   │        │
+                    │         ↓             │        │
+                    │   Softmax(10,000)  [Attention]  │
+                    └─────────────────────────────────┘</code></pre>
+<ul class="md-list"><li><strong>D = 512</strong> cho VGG16 và CLIP</li><li><strong>D = 2048</strong> cho ResNet-101</li></ul></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-7.png" alt="Kiến trúc mô hình và attention map 7×7">
+              <figcaption>Kiến trúc mô hình và attention map 7×7</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>7 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="8" data-slide-key="8" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Mô hình đầu tiên dùng **VGG16** làm Encoder.
+VGG16 là mạng CNN 16 lớp, giải nhất ImageNet 2014, rất nổi tiếng và được dùng rộng rãi.
+Sau khi qua 5 khối Conv, ảnh 224×224 tạo ra feature map 7×7×512, chúng em reshape thành 49 vector 512 chiều.
+Nhóm em chọn VGG16 làm **baseline** vì nó đơn giản, kết quả đáng tin cậy, dễ so sánh với các nghiên cứu khác.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 8</div>
+            <div class="slide-heading">ENCODER 1: VGG16</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Tại sao dùng VGG16?</h2>
+<blockquote class="md-quote">Simonyan &amp; Zisserman, 2014 — Giải nhất ImageNet 2014</blockquote>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Đặc điểm</th><th>Giá trị</th></tr></thead><tbody><tr><td>Kiến trúc</td><td>16 lớp CNN, đơn giản, đồng nhất</td></tr><tr><td>Lớp trích xuất</td><td><code>conv5_3</code> (block cuối cùng)</td></tr><tr><td>Feature shape</td><td><strong>(49, 512)</strong> — 49 vị trí × 512 kênh</td></tr><tr><td>Pre-trained</td><td>ImageNet — 1.2 triệu ảnh, 1000 lớp</td></tr><tr><td>Vai trò trong đề tài</td><td><strong>Baseline</strong> — mô hình cơ sở để so sánh</td></tr></tbody></table>
+<div class="spacer"></div>
+<pre class="md-code"><code>Ảnh 224×224  →  [Conv Block 1-5]  →  Feature Map 7×7×512  →  reshape  →  (49, 512)</code></pre>
+<blockquote class="md-quote">✅ Đơn giản, được kiểm chứng rộng rãi, phù hợp làm baseline</blockquote></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-3.png" alt="VGG16 feature verification (shape: 49×512)">
+              <figcaption>VGG16 feature verification (shape: 49×512)</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>8 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="9" data-slide-key="9" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Mô hình thứ hai nâng cấp lên **ResNet-101** với 101 lớp.
+Điểm đặc biệt là **residual connections** — kết nối tắt giúp mạng rất sâu vẫn học được tốt mà không bị mất gradient.
+Quan trọng hơn, feature output là **(49, 2048)** — nhiều thông tin gấp 4 lần VGG16.
+Câu hỏi đặt ra là: đặc trưng phong phú hơn có cho caption tốt hơn không? Kết quả sẽ nói lên điều này.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 9</div>
+            <div class="slide-heading">ENCODER 2: RESNET-101</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Tại sao nâng cấp lên ResNet-101?</h2>
+<blockquote class="md-quote">He et al., 2016 — Giải nhất ImageNet 2015, CVPR Best Paper</blockquote>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Đặc điểm</th><th>Giá trị</th></tr></thead><tbody><tr><td>Kiến trúc</td><td>101 lớp — <strong>Residual Connections</strong> (kết nối tắt)</td></tr><tr><td>Lớp trích xuất</td><td><code>layer4</code></td></tr><tr><td>Feature shape</td><td><strong>(49, 2048)</strong> — <strong>gấp 4 lần VGG16</strong></td></tr><tr><td>Ưu điểm chính</td><td>Học được đặc trưng sâu hơn mà không bị vanishing gradient</td></tr></tbody></table>
+<div class="spacer"></div>
+<pre class="md-code"><code>VGG16:     (49, 512)  ←  ít thông tin hơn
+ResNet-101: (49, 2048) ←  đặc trưng phong phú gấp 4 lần</code></pre>
+<p class="md-p"><strong>Residual connection:</strong> Nếu lớp hiện tại không học được gì → truyền thẳng kết quả lớp trước qua (skip connection) → không bị mất thông tin</p></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet2.png" alt="ResNet-101 feature verification (shape: 49×2048)">
+              <figcaption>ResNet-101 feature verification (shape: 49×2048)</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>9 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="10" data-slide-key="10" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Mô hình thứ ba dùng **CLIP** của OpenAI — đây là điểm mới và thú vị nhất của đề tài.
+CLIP được huấn luyện trên **400 triệu cặp ảnh-văn bản** từ internet, không phải ImageNet.
+Kết quả là feature của CLIP không chỉ chứa thông tin thị giác mà còn **chứa ngữ nghĩa ngôn ngữ**.
+Về lý thuyết, CLIP nên tạo ra caption tốt hơn vì feature đã &amp;#x27;quen&amp;#x27; với ngôn ngữ rồi.
+Kết quả thực tế — các bạn sẽ thấy ngay sau đây — có điều bất ngờ.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 10</div>
+            <div class="slide-heading">ENCODER 3: CLIP ViT-B/32</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Tại sao thử CLIP?</h2>
+<blockquote class="md-quote">Radford et al., 2021 — OpenAI — Contrastive Language-Image Pretraining</blockquote>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Đặc điểm</th><th>Giá trị</th></tr></thead><tbody><tr><td>Kiến trúc</td><td>Vision Transformer (ViT-B/32)</td></tr><tr><td>Huấn luyện trên</td><td><strong>400 triệu cặp (ảnh, văn bản)</strong> từ internet</td></tr><tr><td>Phương pháp</td><td>Contrastive Learning — ảnh và caption phải "gần nhau" trong không gian vector</td></tr><tr><td>Feature shape</td><td><strong>(49, 512)</strong></td></tr><tr><td>Đặc điểm nổi bật</td><td>Feature đã chứa <strong>ngữ nghĩa ngôn ngữ</strong> — không chỉ visual</td></tr></tbody></table>
+<div class="spacer"></div>
+<pre class="md-code"><code>VGG16 / ResNet: Chỉ học từ ảnh (ImageNet — phân loại 1000 lớp)
+CLIP:           Học đồng thời từ ÂNH + VĂN BẢN (400M cặp) → hiểu ngữ nghĩa</code></pre>
+<blockquote class="md-quote">✅ Lý thuyết: CLIP nên tốt hơn vì feature đã align với ngôn ngữ</blockquote></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/CLIP/clip2.png" alt="CLIP ViT-B/32 patch features (shape: 49×512)">
+              <figcaption>CLIP ViT-B/32 patch features (shape: 49×512)</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>10 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="11" data-slide-key="11" data-notes="🗣️ **CẢNH NÓI:** &amp;quot;Bahdanau Attention là cơ chế cho phép mô hình **nhìn vào đúng vùng ảnh** khi sinh mỗi từ.
+Ví dụ khi sinh từ &amp;#x27;dog&amp;#x27;, mô hình sẽ tập trung vào vùng có con chó trong ảnh.
+Công thức gồm 3 bước: tính điểm số cho 49 vùng ảnh, chuẩn hóa thành xác suất bằng softmax, rồi lấy trung bình có trọng số.
+Đây là công bố năm 2014 của Bahdanau — được trích dẫn hơn 20,000 lần — rất uy tín trong cộng đồng NLP.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 11</div>
+            <div class="slide-heading">CƠ CHẾ BAHDANAU ATTENTION</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Tại sao cần Attention?</h2>
+<pre class="md-code"><code>Không có Attention:          Có Attention:
+&quot;A man is running&quot;           &quot;A man is running&quot;
+   ↑                            ↑
+Chỉ nhìn 1 vector tổng      Nhìn đúng vùng &quot;người đang chạy&quot;
+của toàn bộ ảnh              khi sinh từ &quot;man&quot; và &quot;running&quot;</code></pre>
+<div class="spacer"></div>
+<h3 class="md-h3">Công thức Bahdanau Attention:</h3>
+<blockquote class="md-quote"><em>Bahdanau et al., 2014 — "Neural Machine Translation by Jointly Learning to Align and Translate"</em></blockquote>
+<pre class="md-code"><code>e_i  =  V^T · tanh(W_h · h_{t-1}  +  W_f · f_i)    ← điểm số vùng ảnh thứ i
+α_i  =  softmax(e_i)                                  ← trọng số chú ý (tổng = 1)
+c_t  =  Σ α_i · f_i                                   ← context vector</code></pre>
+<ul class="md-list"><li><code>h_{t-1}</code> : trạng thái ẩn LSTM bước trước</li><li><code>f_i</code> : đặc trưng ảnh tại vị trí không gian thứ i (i = 1..49)</li><li><code>α_i</code> : <strong>mức độ chú ý</strong> tại vị trí i — càng cao càng quan trọng</li><li><code>c_t</code> : <strong>context vector</strong> — tóm tắt thông tin ảnh cần thiết tại bước t</li></ul>
+<p class="md-callout">📌 <strong>Hiển thị heatmap attention từ notebook</strong></p></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-7.png" alt="Attention map trực quan trong decoder">
+              <figcaption>Attention map trực quan trong decoder</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>11 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="12" data-slide-key="12" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Xin chào hội đồng, em sẽ trình bày phần tiếp theo từ quá trình huấn luyện.
+Trong lúc huấn luyện, nhóm em dùng **Teacher Forcing** — tức là dù mô hình đoán sai, bước tiếp theo vẫn nhận từ đúng làm input.
+Điều này giúp quá trình học ổn định hơn nhiều so với dùng chính dự đoán của mô hình.
+Khi inference, nhóm em dùng **Beam Search** với beam width 5 — giữ 5 ứng viên tốt nhất tại mỗi bước thay vì chỉ chọn 1 từ.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 12</div>
+            <div class="slide-heading">HUẤN LUYỆN: TEACHER FORCING &amp; BEAM SEARCH</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Teacher Forcing — Khi huấn luyện</h2>
+<pre class="md-code"><code>Ground truth:  startseq  a  man  is  running  endseq
+Đầu vào LSTM:  startseq  a  man  is  running    ↑
+Đầu ra LSTM:      a     man  is  running  endseq</code></pre>
+<blockquote class="md-quote">✅ Dù LSTM đoán sai ở bước trước → vẫn nhận <strong>từ đúng</strong> làm input → Huấn luyện ổn định, hội tụ nhanh</blockquote>
+<div class="spacer"></div>
+<h2 class="md-h2">Beam Search — Khi sinh caption (Inference)</h2>
+<pre class="md-code"><code>Greedy: chọn từ có xác suất cao nhất tại mỗi bước → dễ bị cục bộ tối ưu
+
+Beam Search (width = 5):
+  Bước 1: Giữ 5 ứng viên tốt nhất: &quot;a&quot;, &quot;the&quot;, &quot;man&quot;, &quot;two&quot;, &quot;group&quot;
+  Bước 2: Mở rộng 5×vocab → Giữ 5 tốt nhất tiếp theo
+  ...
+  Chọn chuỗi có log-probability tổng cao nhất</code></pre>
+<blockquote class="md-quote">✅ Kết quả tốt hơn greedy vì tìm kiếm <strong>rộng hơn</strong> trong không gian caption</blockquote></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>12 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="13" data-slide-key="13" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Cả 3 mô hình dùng chung bộ hyperparameters để đảm bảo so sánh công bằng.
+Điểm thú vị là VGG16 cần **30 epochs** để hội tụ, trong khi ResNet-101 và CLIP chỉ cần **10 epochs**.
+Điều này cho thấy đặc trưng của ResNet và CLIP **phong phú hơn**, mô hình học nhanh hơn.
+Nhóm em dùng **AdamW** thay vì Adam thông thường vì có thêm weight decay, giảm overfitting tốt hơn.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 13</div>
+            <div class="slide-heading">QUÁ TRÌNH HUẤN LUYỆN</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Hyperparameters (giống nhau cho cả 3 mô hình)</h2>
+<table class="md-table"><thead><tr><th>Tham số</th><th>Giá trị</th></tr></thead><tbody><tr><td>Vocab size</td><td>10,000</td></tr><tr><td>Embedding dim</td><td>300 (GloVe 300d)</td></tr><tr><td>LSTM hidden size</td><td>512</td></tr><tr><td>Dropout</td><td>0.5</td></tr><tr><td>Batch size</td><td>64</td></tr><tr><td>Learning rate</td><td>1e-4 (AdamW)</td></tr><tr><td>LR Scheduler</td><td>ReduceLROnPlateau (×0.5 nếu không cải thiện 3 epoch)</td></tr><tr><td>Early stopping</td><td>Patience = 7 epoch</td></tr><tr><td>Beam width</td><td>5</td></tr></tbody></table>
+<div class="spacer"></div>
+<h3 class="md-h3">Số epoch thực tế:</h3>
+<table class="md-table"><thead><tr><th>Mô hình</th><th>Epochs</th><th>Thời gian / epoch</th><th>Ghi chú</th></tr></thead><tbody><tr><td>VGG16</td><td><strong>30 epochs</strong></td><td>~400 giây</td><td>Early stopping epoch 30</td></tr><tr><td>ResNet-101</td><td><strong>10 epochs</strong></td><td>~1,200 giây</td><td>Hội tụ nhanh hơn</td></tr><tr><td>CLIP</td><td><strong>10 epochs</strong></td><td>~900 giây</td><td>Feature extraction nhanh nhất</td></tr></tbody></table>
+<p class="md-callout">📌 <strong>Hiển thị Training Loss Curves từ notebook (3 mô hình)</strong></p></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-8.png" alt="Training results của VGG16">
+              <figcaption>Training results của VGG16</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet4.png" alt="Training history của ResNet-101">
+              <figcaption>Training history của ResNet-101</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/CLIP/clip5.png" alt="Training results của CLIP ViT-B/32">
+              <figcaption>Training results của CLIP ViT-B/32</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>13 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="14" data-slide-key="14" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Để đánh giá chất lượng caption, nhóm em dùng **BLEU score** — thước đo chuẩn của NLP từ năm 2002.
+BLEU so sánh n-gram của caption sinh ra với caption ground truth.
+BLEU-4 là khó nhất và quan trọng nhất — yêu cầu 4 từ liên tiếp phải đúng.
+Nhóm em đánh giá trên 1,000 ảnh test, mỗi ảnh 5 caption tham chiếu — tổng 5,000 câu — nên kết quả đáng tin cậy.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 14</div>
+            <div class="slide-heading">THƯỚC ĐO BLEU SCORE</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">BLEU là gì và tại sao dùng?</h2>
+<blockquote class="md-quote">Papineni et al., 2002 — IBM — Được dùng chuẩn trong hơn 20 năm cho NLP</blockquote>
+<div class="spacer"></div>
+<h3 class="md-h3">Ý nghĩa đơn giản:</h3>
+<pre class="md-code"><code>Caption sinh ra:  &quot;a dog is running in the park&quot;
+Ground truth:     &quot;a brown dog runs across the grass&quot;
+
+BLEU-1 (1-gram): &quot;a&quot;, &quot;dog&quot;, &quot;in&quot;, &quot;the&quot; → khớp 4/7 → 57%
+BLEU-2 (2-gram): &quot;a dog&quot; → khớp 1/6 → 17%
+BLEU-4 (4-gram): 4 từ liên tiếp phải khớp → Khó nhất, chuẩn nhất</code></pre>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Thước đo</th><th>Ý nghĩa</th><th>Độ khó</th></tr></thead><tbody><tr><td>BLEU-1</td><td>Từ đơn khớp với ground truth</td><td>Dễ</td></tr><tr><td>BLEU-2</td><td>Cặp từ khớp</td><td>Trung bình</td></tr><tr><td>BLEU-4</td><td>4 từ liên tiếp khớp</td><td>Khó — <strong>chỉ số chính</strong></td></tr></tbody></table>
+<blockquote class="md-quote">📌 Đánh giá trên <strong>1,000 ảnh × 5 caption/ảnh</strong> = 5,000 câu tham chiếu → Kết quả đáng tin cậy</blockquote></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-9.png" alt="BLEU evaluation của VGG16">
+              <figcaption>BLEU evaluation của VGG16</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet5.png" alt="BLEU evaluation của ResNet-101">
+              <figcaption>BLEU evaluation của ResNet-101</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/CLIP/clip6.png" alt="BLEU evaluation của CLIP">
+              <figcaption>BLEU evaluation của CLIP</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>14 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="15" data-slide-key="15" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Đây là kết quả cốt lõi của đề tài.
+**ResNet-101 đạt BLEU-4 cao nhất: 24.8%**, cải thiện 16.4% so với VGG16.
+**CLIP đứng thứ hai: 24.3%** — cải thiện 14.1%.
+Điều bất ngờ là **CLIP không vượt qua được ResNet-101** dù lý thuyết CLIP mạnh hơn.
+Nhóm em sẽ phân tích nguyên nhân ngay sau đây.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 15</div>
+            <div class="slide-heading">KẾT QUẢ SO SÁNH 3 MÔ HÌNH</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">BLEU Score trên tập Test (1,000 ảnh, Beam Width = 5)</h2>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Mô hình</th><th>BLEU-1</th><th>BLEU-2</th><th>BLEU-3</th><th>BLEU-4</th></tr></thead><tbody><tr><td>VGG16 + LSTM</td><td>61.6%</td><td>43.6%</td><td>30.5%</td><td>21.3%</td></tr><tr><td>CLIP + LSTM</td><td>66.0%</td><td>48.3%</td><td>34.4%</td><td>24.3%</td></tr><tr><td><strong>ResNet-101 + LSTM</strong></td><td><strong>68.1%</strong></td><td><strong>49.5%</strong></td><td><strong>35.0%</strong></td><td><strong>24.8%</strong> ✅</td></tr></tbody></table>
+<div class="spacer"></div>
+<h3 class="md-h3">So với baseline VGG16:</h3>
+<table class="md-table"><thead><tr><th>Mô hình</th><th>BLEU-4</th><th>Cải thiện</th></tr></thead><tbody><tr><td>VGG16</td><td>21.3%</td><td>—</td></tr><tr><td>CLIP</td><td>24.3%</td><td><strong>+14.1%</strong></td></tr><tr><td><strong>ResNet-101</strong></td><td><strong>24.8%</strong></td><td><strong>+16.4%</strong> 🏆</td></tr></tbody></table>
+<div class="spacer"></div>
+<p class="md-callout">📌 <strong>Hiển thị biểu đồ so sánh BLEU từ notebook</strong></p></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-10.png" alt="Generated caption analysis của VGG16">
+              <figcaption>Generated caption analysis của VGG16</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet6.png" alt="Generated caption analysis của ResNet-101">
+              <figcaption>Generated caption analysis của ResNet-101</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>15 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-bottom" data-slide-index="16" data-slide-key="16" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Đây là một số kết quả trực quan.
+Mô hình hoạt động tốt với ảnh đơn giản như người đang thực hiện một hành động rõ ràng.
+Trường hợp thất bại thường xảy ra với cảnh thiên nhiên, ảnh nhiều đối tượng phức tạp, hoặc hoạt động trừu tượng.
+Đây là hạn chế chung của kiến trúc LSTM — **không thể hiểu context toàn cục** của ảnh tốt bằng Transformer.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 16</div>
+            <div class="slide-heading">DEMO: ẢNH THẬT VÀ CAPTION SINH RA</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Kết quả trực quan</h2>
+<p class="md-callout">📌 <strong>Hiển thị Demo từ notebook — 4 ảnh test với caption từ 3 mô hình</strong></p>
+<div class="spacer"></div>
+<h3 class="md-h3">Ví dụ caption tốt nhất (VGG16, BLEU-4 = 0.603):</h3>
+<pre class="md-code"><code>Ảnh: [Người đàn ông và phụ nữ đang nhảy]
+Caption sinh ra: &quot;a man and a woman are dancing on a dance floor&quot;
+Ground truth:    &quot;a man and a woman are dancing together&quot;</code></pre>
+<div class="spacer"></div>
+<h3 class="md-h3">Ví dụ caption thất bại:</h3>
+<pre class="md-code"><code>Ảnh: [Cảnh thiên nhiên phức tạp]
+Caption sinh ra: &quot;a man is standing in a field&quot;  ← không có người
+Ground truth:    &quot;a mountain with snow on it&quot;</code></pre>
+<blockquote class="md-quote">⚠️ Mô hình gặp khó khăn với: cảnh thiên nhiên, nhiều người, hoạt động trừu tượng</blockquote></div>
+            <div class="media-grid media-grid--bottom">
+            <figure class="media-card">
+              <img src="images/VGG16/VGG16-12.png" alt="Demo caption generation của VGG16">
+              <figcaption>Demo caption generation của VGG16</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet7.png" alt="Demo caption generation của ResNet-101">
+              <figcaption>Demo caption generation của ResNet-101</figcaption>
+            </figure>
+            
+            <figure class="media-card">
+              <img src="images/CLIP/clip7.png" alt="Demo caption generation của CLIP">
+              <figcaption>Demo caption generation của CLIP</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>16 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-side" data-slide-index="17" data-slide-key="17" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Câu hỏi thú vị nhất của đề tài là: Tại sao CLIP — mô hình mạnh hơn — lại không thắng ResNet-101?
+Chúng em phân tích và có 3 lý do chính.
+Thứ nhất, feature của ResNet-101 là **2048 chiều** — nhiều thông tin không gian hơn CLIP 512 chiều.
+Thứ hai, CLIP được tối ưu để **hiểu ngữ nghĩa chung** của ảnh, không phải trích xuất chi tiết từng vùng.
+Thứ ba, **LSTM không đủ mạnh** để khai thác hết sức mạnh semantic của CLIP.
+Nếu thay LSTM bằng Transformer decoder — đây là hướng phát triển tiếp theo — thì CLIP có thể sẽ vượt.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 17</div>
+            <div class="slide-heading">PHÂN TÍCH KẾT QUẢ</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Tại sao ResNet-101 thắng CLIP?</h2>
+<div class="spacer"></div>
+<h3 class="md-h3">Phân tích kỹ thuật:</h3>
+<table class="md-table"><thead><tr><th>Yếu tố</th><th>ResNet-101</th><th>CLIP</th></tr></thead><tbody><tr><td>Feature dimension</td><td><strong>2048 chiều</strong></td><td>512 chiều</td></tr><tr><td>Thông tin không gian</td><td>Phong phú hơn</td><td>Đã nén qua ViT</td></tr><tr><td>Phù hợp với LSTM</td><td>✅ Cao</td><td>Trung bình</td></tr><tr><td>Epochs huấn luyện</td><td>10</td><td>10</td></tr></tbody></table>
+<div class="spacer"></div>
+<h3 class="md-h3">Lý giải:</h3>
+<blockquote class="md-quote">1. <strong>CLIP feature 512d</strong> — nhỏ hơn ResNet 2048d → ít thông tin không gian hơn cho Attention<br>2. <strong>CLIP tối ưu cho classification</strong> (image-text matching), không phải generation<br>3. <strong>Decoder LSTM không đủ sức</strong> tận dụng hết sức mạnh semantic của CLIP<br>4. Nếu dùng <strong>Transformer decoder</strong> thay vì LSTM → CLIP có thể vượt ResNet</blockquote>
+<div class="spacer"></div>
+<blockquote class="md-quote">✅ Kết luận: ResNet-101 <strong>phù hợp hơn</strong> với kiến trúc LSTM + Attention trong bài toán này</blockquote></div>
+            <div class="media-grid media-grid--side">
+            <figure class="media-card">
+              <img src="images/Resnet/Resnet6.png" alt="Phân tích chất lượng caption sinh ra">
+              <figcaption>Phân tích chất lượng caption sinh ra</figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>17 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="18" data-slide-key="18" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Để đặt kết quả vào bối cảnh, nhóm em so sánh với các công trình nổi tiếng.
+Kết quả VGG16 của nhóm em là 21.3% — **vượt qua Xu et al. 2015** là 19.9%.
+Kết quả ResNet-101 là 24.8% — **ngang bằng Google 2015** dù chúng em chỉ dùng LSTM đơn giản.
+Điều này cho thấy implementation của nhóm em là **chính xác và không bị lỗi** — kết quả phản ánh đúng khả năng của mô hình.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 18</div>
+            <div class="slide-heading">SO SÁNH VỚI NGHIÊN CỨU KHÁC</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Benchmarking — Kết quả của nhóm so với công bố</h2>
+<div class="spacer"></div>
+<table class="md-table"><thead><tr><th>Công trình</th><th>Dataset</th><th>Encoder</th><th>BLEU-4</th></tr></thead><tbody><tr><td>Xu et al., 2015 (Hard Attention)</td><td>Flickr30k</td><td>VGG16</td><td>19.9%</td></tr><tr><td>Vinyals et al., 2015 (Google)</td><td>Flickr30k</td><td>GoogLeNet</td><td>24.3%</td></tr><tr><td><strong>Nhóm em — VGG16</strong></td><td>Flickr30k</td><td>VGG16</td><td><strong>21.3%</strong></td></tr><tr><td><strong>Nhóm em — CLIP</strong></td><td>Flickr30k</td><td>CLIP ViT-B/32</td><td><strong>24.3%</strong></td></tr><tr><td><strong>Nhóm em — ResNet-101</strong></td><td>Flickr30k</td><td>ResNet-101</td><td><strong>24.8%</strong> 🏆</td></tr></tbody></table>
+<div class="spacer"></div>
+<blockquote class="md-quote">✅ Kết quả của nhóm <strong>vượt Xu et al. (2015)</strong> và <strong>tương đương Google (2015)</strong> chỉ với LSTM thuần<br>✅ Điều này xác nhận kiến trúc nhóm em xây dựng hoạt động <strong>đúng và hiệu quả</strong></blockquote></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>18 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="19" data-slide-key="19" data-notes="🗣️ **GIANG NÓI:** &amp;quot;Tóm lại, nhóm em đã hoàn thành tất cả mục tiêu đề ra.
+Ba mô hình đều hoạt động tốt, kết quả vượt các nghiên cứu cùng kiến trúc từ 2015.
+Phát hiện thú vị nhất là CLIP không vượt ResNet với LSTM — điều này gợi mở hướng nghiên cứu tiếp theo.
+Nhóm em cũng đã xây dựng **demo app thực tế** — không chỉ là lý thuyết mà có sản phẩm cụ thể có thể dùng ngay.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 19</div>
+            <div class="slide-heading">KẾT LUẬN &amp; HƯỚNG PHÁT TRIỂN</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><h2 class="md-h2">Những gì nhóm em đã làm được:</h2>
+<p class="md-callout">✅ Xây dựng và so sánh thành công <strong>3 mô hình</strong> Image Captioning trên Flickr30k ✅ Kết quả <strong>vượt baseline Xu et al. 2015</strong>, tương đương Google 2015 ✅ <strong>ResNet-101 đạt BLEU-4 tốt nhất: 24.8%</strong> — cải thiện 16.4% so với VGG16 ✅ Phát hiện bất ngờ: <strong>CLIP không vượt được ResNet với LSTM decoder</strong> ✅ Xây dựng <strong>Streamlit demo app</strong> cho phép upload ảnh và sinh caption real-time</p>
+<div class="spacer"></div>
+<h2 class="md-h2">Hướng phát triển tiếp theo:</h2>
+<table class="md-table"><thead><tr><th>Hướng</th><th>Kỳ vọng</th></tr></thead><tbody><tr><td>Thay LSTM bằng <strong>Transformer decoder</strong></td><td>CLIP có thể phát huy toàn bộ sức mạnh</td></tr><tr><td><strong>Fine-tune encoder</strong> thay vì frozen</td><td>Đặc trưng tốt hơn cho bài toán cụ thể</td></tr><tr><td>Dataset lớn hơn (COCO — 330K ảnh)</td><td>BLEU-4 có thể đạt &gt;30%</td></tr><tr><td><strong>Scheduled Sampling</strong></td><td>Giảm exposure bias — cải thiện inference</td></tr></tbody></table></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>19 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only slide-card--hero" data-slide-index="20" data-slide-key="20" data-notes="🗣️ **CẢ HAI NÓI:** &amp;quot;Nhóm em xin cảm ơn thầy Hồ Nhựt Minh đã hướng dẫn và hỗ trợ trong suốt quá trình thực hiện.
+Cảm ơn hội đồng đã lắng nghe. Nhóm em xin sẵn sàng trả lời câu hỏi.&amp;quot;">
+          <div class="slide-topbar">
+            <div class="slide-chip">SLIDE 20</div>
+            <div class="slide-heading">CẢM ƠN &amp; HỎI ĐÁP</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><div class="spacer"></div>
+<div class="spacer"></div>
+<h1 class="md-h1">CẢM ƠN HỘI ĐỒNG ĐÃ LẮNG NGHE</h1>
+<div class="spacer"></div>
+<p class="md-p"><strong>Nhóm sinh viên thực hiện:</strong></p>
+<blockquote class="md-quote">Lê Văn Cảnh    |    Nguyễn Đức Trường Giang</blockquote>
+<p class="md-p"><strong>Giảng viên hướng dẫn:</strong> Hồ Nhựt Minh</p>
+<p class="md-p"><strong>Lớp:</strong> DT2307L — Aptech</p>
+<div class="spacer"></div>
+<div class="spacer"></div>
+<h2 class="md-h2">Nhóm em xin sẵn sàng trả lời câu hỏi của hội đồng</h2></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>20 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only slide-card--appendix" data-slide-index="21" data-slide-key="PHU_LUC" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">PHỤ LỤC — CÂU HỎI THƯỜNG GẶP (CHUẨN BỊ TRƯỚC)</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><blockquote class="md-quote">⚠️ Phần này KHÔNG trình chiếu — chỉ để nhóm chuẩn bị trả lời hội đồng</blockquote></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>21 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="22" data-slide-key="Q1" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q1: Tại sao ResNet-101 tốt hơn CLIP?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> CLIP feature 512 chiều nhỏ hơn ResNet 2048 chiều, cung cấp ít thông tin không gian hơn cho cơ chế Attention. Ngoài ra, CLIP được huấn luyện cho image-text matching (phân loại), không phải generation — nên LSTM khó khai thác được sức mạnh ngữ nghĩa của CLIP. Để CLIP phát huy hết tiềm năng cần Transformer decoder thay vì LSTM.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>22 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="23" data-slide-key="Q2" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q2: BLEU score có phải thước đo tốt nhất không?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> BLEU là thước đo chuẩn và được dùng rộng rãi nhất (từ 2002, Papineni et al.), dễ so sánh với các nghiên cứu khác. Tuy nhiên BLEU có hạn chế: không đánh giá được tính trôi chảy ngữ nghĩa cao. Các thước đo tốt hơn như CIDEr, METEOR, SPICE tập trung hơn vào semantic — đây là hướng cải thiện đánh giá cho đề tài sau.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>23 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="24" data-slide-key="Q3" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q3: Tại sao không fine-tune encoder?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Encoder được giữ frozen để tiết kiệm bộ nhớ GPU và tránh overfitting khi dataset không quá lớn (31K ảnh). Fine-tuning encoder cần GPU mạnh hơn và cần kỹ thuật discriminative fine-tuning để không làm hỏng pretrained weights. Đây là hướng phát triển tiếp theo có thể cải thiện BLEU thêm 1-2%.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>24 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="25" data-slide-key="Q4" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q4: Tại sao VGG16 cần 30 epochs còn ResNet/CLIP chỉ cần 10?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Feature của ResNet-101 (2048d) và CLIP phong phú và biểu đạt hơn feature VGG16 (512d). Decoder LSTM học cách "đọc" feature tốt hơn trong ít epoch hơn. VGG16 cần nhiều epoch hơn để LSTM học cách bù đắp cho feature ít thông tin hơn.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>25 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="26" data-slide-key="Q5" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q5: Beam Search width = 5 thì chọn như thế nào?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Beam width 5 là giá trị chuẩn trong hầu hết các paper Image Captioning (Xu et al. 2015, Vinyals et al. 2015). Width lớn hơn không nhất thiết tốt hơn vì có thể sinh ra câu quá dài, lan man. Nhóm em giữ width = 5 để kết quả có thể so sánh trực tiếp với các công trình trước.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>26 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="27" data-slide-key="Q6" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q6: Dataset Flickr30k có đủ lớn không?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Flickr30k với 31,783 ảnh là dataset chuẩn, đủ để train mô hình có kết quả tốt và có thể so sánh với nhiều nghiên cứu. Dataset lớn hơn như COCO (330K ảnh) có thể cải thiện thêm BLEU-4 lên 30-35% — đây là hướng phát triển tiếp theo nếu có tài nguyên tính toán lớn hơn.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>27 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="28" data-slide-key="Q7" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q7: Demo app hoạt động như thế nào?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Demo app được xây dựng bằng Streamlit. Người dùng upload ảnh → app trích xuất feature bằng encoder đã train → LSTM sinh caption bằng Beam Search → hiển thị caption và attention heatmap. Toàn bộ pipeline chạy trên CPU/MPS (Apple Silicon) trong vài giây.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>28 / 29</span>
+          </div>
+        </section>
+        
+        <section class="slide slide-card layout-text-only" data-slide-index="29" data-slide-key="Q8" data-notes="Không có lời thoại riêng cho slide này.">
+          <div class="slide-topbar">
+            <div class="slide-chip">PHỤ LỤC</div>
+            <div class="slide-heading">Q8: Nếu làm lại, nhóm em sẽ cải thiện gì?</div>
+          </div>
+          <div class="slide-content">
+            <div class="slide-text"><p class="md-p"><strong>Trả lời:</strong> Ba điểm chính: (1) Thay LSTM bằng <strong>Transformer decoder</strong> để tận dụng tốt hơn CLIP feature; (2) Dùng <strong>CIDEr-D optimization</strong> thay vì cross-entropy thuần; (3) Thử <strong>Scheduled Sampling</strong> trong training để giảm exposure bias — giúp inference tốt hơn khi không có teacher forcing.</p></div>
+            
+          </div>
+          <div class="slide-footer">
+            <span>Neural Image Caption Generation</span>
+            <span>29 / 29</span>
+          </div>
+        </section>
+        
+    </div>
+  </main>
+
+  <div class="progress-bar" aria-hidden="true"><span id="progress"></span></div>
+
+  <aside class="notes-panel" id="notesPanel">
+    <h3>LỜI THOẠI TRÌNH BÀY</h3>
+    <p id="notesBody"></p>
+  </aside>
+
+  <div class="help-panel">
+    <strong>Ghi chú</strong>
+    <div># SLIDE BẢO VỆ ĐỒ ÁN — NEURAL IMAGE CAPTION GENERATION<br>&gt; **Cách dùng file này:** Mở VSCode → nhấn `Cmd+Shift+V` để xem Markdown Preview → Full-screen → trình chiếu.<br>&gt; Mỗi phần `---` là một slide. Phần `&gt; 🗣️ NÓI:` là gợi ý lời thoại, **không hiển thị khi trình chiếu** (ẩn trong preview).<br>&gt; **Cảnh** trình bày Slide 1–11 | **Giang** trình bày Slide 12–20</div>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const progress = document.getElementById('progress');
+    const notesPanel = document.getElementById('notesPanel');
+    const notesBody = document.getElementById('notesBody');
+    let current = 0;
+
+    function updateSlide(nextIndex) {
+      current = Math.max(0, Math.min(nextIndex, slides.length - 1));
+      slides.forEach((slide, index) => {
+        slide.classList.toggle('is-active', index === current);
+      });
+
+      const active = slides[current];
+      notesBody.innerHTML = active.dataset.notes || 'Không có lời thoại riêng cho slide này.';
+      progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+      document.title = `${active.querySelector('.slide-chip').textContent} - ${active.querySelector('.slide-heading').textContent}`;
+    }
+
+    function nextSlide() {
+      updateSlide(current + 1);
+    }
+
+    function previousSlide() {
+      updateSlide(current - 1);
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
+        event.preventDefault();
+        nextSlide();
+      } else if (['ArrowLeft', 'PageUp'].includes(event.key)) {
+        event.preventDefault();
+        previousSlide();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        updateSlide(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        updateSlide(slides.length - 1);
+      } else if (event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        notesPanel.classList.toggle('is-open');
+      } else if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.();
+        } else {
+          document.exitFullscreen?.();
+        }
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.notes-panel')) return;
+      if (event.clientX > window.innerWidth * 0.68) {
+        nextSlide();
+      } else if (event.clientX < window.innerWidth * 0.32) {
+        previousSlide();
+      }
+    });
+
+    updateSlide(0);
+  </script>
+</body>
+</html>
