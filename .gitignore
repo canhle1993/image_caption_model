@@ -6,6 +6,7 @@ __pycache__/
 # Local training artifacts
 workspace/
 glove.6B.100d.txt
+glove.6B.300d.txt
 glove.6B/
 
 # Notebook checkpoints

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/opt/anaconda3/envs/tf-metal/bin/python generate_report.py)",
+      "Bash(/opt/anaconda3/envs/tf-metal/bin/python -c \"import pptx; print\\('python-pptx OK:', pptx.__version__\\)\")"
+    ]
+  }
+}
